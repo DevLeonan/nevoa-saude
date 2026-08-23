@@ -37,6 +37,7 @@ const state = {
   auditLogs: [],
   reports: null,
   team: [],
+  professionals: [],
   automations: [],
   integrations: []
 };
@@ -125,6 +126,23 @@ function formatDate(value, options = { dateStyle: 'short' }) {
 
 function emptyState(message, detail = '') {
   return `<div class="empty-state"><strong>${escapeHtml(message)}</strong>${detail ? `<p>${escapeHtml(detail)}</p>` : ''}</div>`;
+}
+
+function professionalLabel(professional) {
+  return [professional.role, professional.education, professional.specialty].filter(Boolean).join(' · ') || 'Profissional assistencial';
+}
+
+async function loadProfessionals() {
+  const data = await api('/professionals?page=1&pageSize=50');
+  state.professionals = data.items;
+  return state.professionals;
+}
+
+function fillProfessionalSelect(select, selected = '') {
+  if (!select) return;
+  const current = selected || select.value;
+  select.replaceChildren();
+  state.professionals.forEach(professional => select.add(new Option(`${professional.name} — ${professionalLabel(professional)}`, professional.name, false, professional.name === current)));
 }
 
 function setBusy(button, busy, busyText = 'Salvando…') {
@@ -255,32 +273,39 @@ function changeAgendaDate(days) {
 }
 
 async function loadAgenda() {
-  const columns = [...document.querySelectorAll('.doctor-column')];
-  columns.forEach(column => column.querySelectorAll('.cal-event,.agenda-empty').forEach(event => event.remove()));
-  (columns[0] || document.body).insertAdjacentHTML('beforeend', '<p class="agenda-empty">Carregando agenda…</p>');
+  const grid = document.querySelector('.calendar-grid');
+  grid.querySelectorAll('.doctor-column').forEach(column => column.remove());
+  grid.insertAdjacentHTML('beforeend', '<p class="agenda-empty">Carregando agenda…</p>');
   const query = new URLSearchParams({ date: state.agendaDate });
   if (state.agendaDoctor) query.set('doctor', state.agendaDoctor);
   if (state.agendaStatus) query.set('status', state.agendaStatus);
   if (state.agendaQuery) query.set('q', state.agendaQuery);
   try {
-    const appointments = await api(`/appointments?${query}`);
+    const [appointments, professionals] = await Promise.all([api(`/appointments?${query}`), loadProfessionals()]);
+    grid.querySelectorAll('.agenda-empty').forEach(item => item.remove());
     document.querySelector('.agenda-date strong').textContent = formatDate(state.agendaDate, { dateStyle: 'long' });
     document.querySelector('#agendaDoctorFilter').value = state.agendaDoctor;
-    columns.forEach(column => {
-      column.querySelectorAll('.cal-event,.agenda-empty').forEach(event => event.remove());
-      const matches = !state.agendaDoctor || column.querySelector('.doctor-header strong')?.textContent === state.agendaDoctor;
-      column.hidden = !matches; column.classList.toggle('mobile-selected', matches && Boolean(state.agendaDoctor));
+    const doctorFilter = document.querySelector('#agendaDoctorFilter'); doctorFilter.replaceChildren(new Option('Todos os profissionais', ''));
+    professionals.forEach(professional => doctorFilter.add(new Option(`${professional.name} — ${professionalLabel(professional)}`, professional.name, false, professional.name === state.agendaDoctor)));
+    const visible = professionals.filter(professional => !state.agendaDoctor || professional.name === state.agendaDoctor);
+    visible.forEach((professional, index) => {
+      const column = document.createElement('div'); column.className = `doctor-column ${index ? 'secondary-doctor' : ''}`;
+      column.dataset.professional = professional.name;
+      column.innerHTML = `<div class="doctor-header"><div class="avatar">${initials(professional.name)}</div><span><strong>${escapeHtml(professional.name)}</strong><small>${escapeHtml(professionalLabel(professional))}</small></span></div>`;
+      grid.append(column);
     });
+    const columns = [...grid.querySelectorAll('.doctor-column')];
     document.querySelector('.calendar-grid').classList.toggle('single-doctor', Boolean(state.agendaDoctor));
     appointments.forEach(appointment => {
-      const column = columns.find(item => item.querySelector('.doctor-header strong')?.textContent === appointment.doctor); if (!column) return;
+      const column = columns.find(item => item.dataset.professional === appointment.doctor); if (!column) return;
       const [hour, minute] = appointment.start.split(':').map(Number); const top = 58 + (hour - 8) * 60 + Math.round(minute / 60 * 60);
       const item = document.createElement('button'); item.type = 'button'; item.dataset.appointmentId = appointment.id; item.className = `cal-event ${statusClass(appointment.status)}`; item.style.top = `${top}px`; item.style.height = `${Math.max(38, Math.round(appointment.duration / 60 * 60))}px`; item.innerHTML = `${escapeHtml(appointment.start)} · ${escapeHtml(appointment.patient)}<small>${escapeHtml(statusLabel(appointment.status))}</small>`; column.append(item);
     });
-    if (!appointments.length) (columns.find(column => !column.hidden) || columns[0]).insertAdjacentHTML('beforeend', '<p class="agenda-empty">Nenhuma consulta para os filtros atuais.</p>');
+    if (!visible.length) grid.insertAdjacentHTML('beforeend', '<p class="agenda-empty">Nenhum profissional ativo cadastrado.</p>');
+    else if (!appointments.length) columns[0].insertAdjacentHTML('beforeend', '<p class="agenda-empty">Nenhuma consulta para os filtros atuais.</p>');
   } catch (error) {
-    columns.forEach(column => column.querySelectorAll('.cal-event,.agenda-empty').forEach(event => event.remove()));
-    columns[0].insertAdjacentHTML('beforeend', `<p class="agenda-empty error-text">${escapeHtml(error.message)}</p>`);
+    grid.querySelectorAll('.doctor-column,.agenda-empty').forEach(item => item.remove());
+    grid.insertAdjacentHTML('beforeend', `<p class="agenda-empty error-text">${escapeHtml(error.message)}</p>`);
   }
 }
 
@@ -293,6 +318,7 @@ async function loadPatientSuggestions() {
 
 async function openAppointmentDialog(date = state.agendaDate) {
   const form = document.querySelector('#appointmentForm'); form.reset(); form.elements.date.value = date || localDate();
+  try { await loadProfessionals(); fillProfessionalSelect(form.elements.doctor); } catch (error) { showToast(error.message, 'error'); return; }
   document.querySelector('#appointmentDialog').showModal();
   await Promise.all([refreshAvailableSlots(), loadPatientSuggestions()]);
 }
@@ -312,6 +338,7 @@ async function refreshAvailableSlots() {
 async function openAppointmentAction(appointmentId) {
   try {
     const appointment = await api(`/appointments/${appointmentId}`); const form = document.querySelector('#appointmentActionForm');
+    await loadProfessionals(); fillProfessionalSelect(form.elements.doctor, appointment.doctor);
     for (const field of ['id', 'version', 'patient', 'doctor', 'date', 'start', 'duration']) form.elements[field].value = appointment[field];
     document.querySelector('#appointmentActionTitle').textContent = appointment.patient; document.querySelector('#appointmentActionStatus').textContent = statusLabel(appointment.status);
     const inactive = ['CANCELLED', 'COMPLETED'].includes(appointment.status); form.querySelector('[data-confirm-appointment]').disabled = inactive || appointment.status === 'CONFIRMED'; form.querySelector('[data-reschedule-appointment]').disabled = inactive; form.querySelector('[data-cancel-appointment]').disabled = inactive;
@@ -350,9 +377,29 @@ async function openPatientProfile(patientId) {
   try {
     const patient = await api(`/patients/${patientId}`); const appointments = (await api(`/appointments?q=${encodeURIComponent(patient.name)}`)).filter(item => item.patientId === patient.id);
     document.querySelector('#patientProfileTitle').textContent = patient.name;
-    content.innerHTML = `<div class="profile-summary"><span><small>Telefone</small><strong>${escapeHtml(patient.phone || 'Não informado')}</strong></span><span><small>E-mail</small><strong>${escapeHtml(patient.email || 'Não informado')}</strong></span><span><small>Cadastro</small><strong>${formatDate(patient.createdAt)}</strong></span></div><h3>Histórico de consultas</h3><div class="profile-history">${appointments.map(item => `<button type="button" data-profile-appointment="${escapeAttr(item.id)}"><span><strong>${formatDate(item.date)} · ${escapeHtml(item.start)}</strong><small>${escapeHtml(item.doctor)}</small></span><em>${escapeHtml(statusLabel(item.status))}</em></button>`).join('') || emptyState('Nenhuma consulta vinculada')}</div><div class="dialog-actions"><button class="outline-button" type="button" data-profile-edit>Editar cadastro</button></div>`;
+    content.innerHTML = `<div class="profile-summary"><span><small>Telefone</small><strong>${escapeHtml(patient.phone || 'Não informado')}</strong></span><span><small>E-mail</small><strong>${escapeHtml(patient.email || 'Não informado')}</strong></span><span><small>Cadastro</small><strong>${formatDate(patient.createdAt)}</strong></span></div><h3>Histórico de consultas</h3><div class="profile-history">${appointments.map(item => `<button type="button" data-profile-appointment="${escapeAttr(item.id)}"><span><strong>${formatDate(item.date)} · ${escapeHtml(item.start)}</strong><small>${escapeHtml(item.doctor)}</small></span><em>${escapeHtml(statusLabel(item.status))}</em></button>`).join('') || emptyState('Nenhuma consulta vinculada')}</div><div class="dialog-actions"><button class="outline-button" type="button" data-profile-edit>Editar cadastro</button><button class="primary-button" type="button" data-profile-conversation>Abrir mensagens</button></div>`;
     content.querySelectorAll('[data-profile-appointment]').forEach(button => button.addEventListener('click', () => { dialog.close(); openAppointmentAction(button.dataset.profileAppointment); })); content.querySelector('[data-profile-edit]').addEventListener('click', () => { dialog.close(); openPatientDialog(patient); });
+    content.querySelector('[data-profile-conversation]').addEventListener('click', () => openPatientConversation(patient, dialog));
   } catch (error) { content.innerHTML = emptyState('Perfil indisponível', error.message); }
+}
+
+async function openPatientConversation(patient, dialog = null) {
+  try {
+    const conversations = await api(`/conversations?q=${encodeURIComponent(patient.name)}`);
+    const conversation = conversations.find(item => item.patientId === patient.id) || conversations.find(item => item.patient.toLocaleLowerCase('pt-BR') === patient.name.toLocaleLowerCase('pt-BR'));
+    dialog?.close();
+    if (conversation) {
+      state.conversationStatus = conversation.status;
+      await go('conversas');
+      document.querySelector('.conversations-layout').classList.add('chat-open');
+      await loadConversation(conversation.id);
+      return;
+    }
+    await go('conversas');
+    await openConversationDialog();
+    document.querySelector('#conversationForm').elements.patient.value = patient.name;
+    showToast('Este paciente ainda não tem conversa. Preencha e crie o atendimento.', 'info');
+  } catch (error) { showToast(error.message, 'error'); }
 }
 
 async function loadPending() {
@@ -426,13 +473,14 @@ async function loadAutomations() {
     const [rules, runs] = await Promise.all([api('/automation-rules'), api('/automation-runs')]); state.automations = rules;
     document.querySelector('#activeAutomations').textContent = rules.filter(rule => rule.active).length; document.querySelector('#automationExecutions').textContent = runs.length; document.querySelector('#lastAutomationRun').textContent = runs[0]?.at ? timeAgo(runs[0].at) : 'Nenhuma';
     container.innerHTML = rules.map(rule => `<div class="rule" data-rule-id="${escapeAttr(rule.id)}"><span class="rule-icon">${rule.actionType === 'FLAG_HUMAN' ? '!' : rule.actionType === 'REQUEST_CONFIRMATION' ? '?' : '⏱'}</span><div><strong>${escapeHtml(rule.name)}</strong><p>${escapeHtml(ruleDescription(rule))}</p><span class="rule-meta">${rule.active ? 'Ativa' : 'Pausada'} · ${rule.triggerHours}h · ${escapeHtml(statusLabel(rule.conditionStatus))}</span></div><label class="switch" title="Ativar ou pausar"><input type="checkbox" ${rule.active ? 'checked' : ''}><span></span></label><div class="row-actions"><button class="row-action" type="button" data-run-rule>Executar</button><button class="row-action" type="button" data-edit-rule>Editar</button><button class="row-action danger" type="button" data-delete-rule>Excluir</button></div></div>`).join('') || emptyState('Nenhuma automação cadastrada', 'Crie uma regra para executar no sandbox local.');
-    document.querySelector('#automationHistory').innerHTML = runs.map(run => { const rule = rules.find(item => item.id === run.ruleId); const executed = run.result?.messagesCreated ?? run.result?.executed ?? 0; return `<div class="history-row"><span class="activity-icon violet">✓</span><div><strong>${escapeHtml(rule?.name || 'Regra removida')}</strong><small>${executed} ação(ões) local(is) · sem entrega externa</small></div><time>${formatDate(run.at, { dateStyle: 'short', timeStyle: 'short' })}</time></div>`; }).join('') || emptyState('Nenhuma execução registrada', 'Use “Executar” em uma regra ativa para testar o motor local.');
+    document.querySelector('#automationHistory').innerHTML = runs.map(run => { const rule = rules.find(item => item.id === run.ruleId); const executed = run.result?.messagesCreated ?? run.result?.executed ?? 0; const conversation = run.result?.conversations?.[0]; return `<div class="history-row"><span class="activity-icon violet">✓</span><div><strong>${escapeHtml(rule?.name || 'Regra removida')}</strong><small>${executed} ação(ões) criada(s) no atendimento local${conversation ? ` · ${escapeHtml(conversation.patient)}` : ''}</small></div>${conversation ? `<button class="row-action" type="button" data-open-automation-conversation="${escapeAttr(conversation.conversationId)}">Ver mensagem</button>` : ''}<time>${formatDate(run.at, { dateStyle: 'short', timeStyle: 'short' })}</time></div>`; }).join('') || emptyState('Nenhuma execução registrada', 'Use “Executar” em uma regra ativa para testar o motor local.');
+    document.querySelectorAll('[data-open-automation-conversation]').forEach(button => button.addEventListener('click', async () => { await go('conversas'); document.querySelector('.conversations-layout').classList.add('chat-open'); await loadConversation(button.dataset.openAutomationConversation); }));
     bindAutomationRows(container);
   } catch (error) { container.innerHTML = emptyState('Automações indisponíveis', error.message); document.querySelector('#automationHistory').innerHTML = emptyState('Histórico indisponível', error.message); document.querySelector('#activeAutomations').textContent = '—'; document.querySelector('#automationExecutions').textContent = '—'; }
 }
 
 function ruleDescription(rule) {
-  return ({ SEND_REMINDER: 'Cria um lembrete persistido na conversa vinculada.', SEND_CONFIRMATION_REQUEST: 'Cria uma solicitação local de confirmação.' })[rule.actionType] || 'Ação local configurada.';
+  return ({ SEND_REMINDER: 'Cria um lembrete persistido na conversa vinculada.', SEND_CONFIRMATION_REQUEST: 'Cria uma solicitação local de confirmação.', REQUEST_CONFIRMATION: 'Cria uma solicitação local de confirmação.', FLAG_HUMAN: 'Sinaliza a consulta e encaminha para a equipe.' })[rule.actionType] || 'Ação local configurada.';
 }
 
 function bindAutomationRows(container) {
@@ -440,7 +488,7 @@ function bindAutomationRows(container) {
     const id = row.dataset.ruleId; const rule = state.automations.find(item => item.id === id);
     row.querySelector('.switch input').addEventListener('change', async event => { event.target.disabled = true; try { await api(`/automation-rules/${id}`, { method: 'PATCH', body: JSON.stringify({ active: event.target.checked }) }); showToast(event.target.checked ? 'Automação ativada.' : 'Automação pausada.', 'success'); await loadAutomations(); } catch (error) { event.target.checked = !event.target.checked; showToast(error.message, 'error'); } finally { event.target.disabled = false; } });
     row.querySelector('[data-edit-rule]').addEventListener('click', () => openAutomationDialog(rule));
-    row.querySelector('[data-run-rule]').addEventListener('click', async event => { setBusy(event.target, true, 'Executando…'); try { const result = await api(`/automation-rules/${id}/run`, { method: 'POST', body: '{}' }); showToast(`Execução concluída: ${result.executed ?? result.matched ?? 0} ação(ões).`, 'success'); await Promise.all([loadAutomations(), loadDashboard()]); } catch (error) { showToast(error.message, 'error'); } finally { setBusy(event.target, false); } });
+    row.querySelector('[data-run-rule]').addEventListener('click', async event => { setBusy(event.target, true, 'Executando…'); try { const result = await api(`/automation-rules/${id}/run`, { method: 'POST', body: '{}' }); const conversation = result.conversations?.[0]; showToast(`Execução concluída: ${result.executed ?? result.matched ?? 0} ação(ões) criada(s).`, 'success'); await Promise.all([loadAutomations(), loadDashboard()]); if (conversation) { await go('conversas'); document.querySelector('.conversations-layout').classList.add('chat-open'); await loadConversation(conversation.conversationId); } } catch (error) { showToast(error.message, 'error'); } finally { setBusy(event.target, false); } });
     row.querySelector('[data-delete-rule]').addEventListener('click', async () => { if (!confirm(`Excluir a automação “${rule.name}”?`)) return; try { await api(`/automation-rules/${id}`, { method: 'DELETE' }); showToast('Automação excluída.', 'success'); await loadAutomations(); } catch (error) { showToast(error.message, 'error'); } });
   });
 }
@@ -484,15 +532,25 @@ async function loadReports() {
 async function loadTeam() {
   const page = document.querySelector('#equipe'); page.innerHTML = '<p class="audit-loading">Carregando equipe…</p>';
   try {
-    state.team = await api('/team');
+    const [team, professionals] = await Promise.all([api('/team'), loadProfessionals()]); state.team = team;
     const rows = state.team.map(user => `<div class="data-row" data-user-id="${escapeAttr(user.id)}"><span class="avatar">${initials(user.name)}</span><div><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(user.email)} · ${escapeHtml(user.role)}</small></div><span class="status-pill ${user.active ? 'active' : 'inactive'}">${user.active ? 'Ativo' : 'Inativo'}</span><button class="row-action" type="button" data-edit-user>Editar</button></div>`).join('');
-    page.innerHTML = `<div class="page-heading compact"><div><p class="eyebrow">ACESSOS E PAPÉIS</p><h1>Equipe</h1><p class="subtitle">Membros, funções e estado de acesso persistidos.</p></div><button class="primary-button" type="button" data-new-user><i data-icon="plus"></i>Adicionar membro</button></div><article class="panel data-panel">${rows || emptyState('Nenhum membro cadastrado')}</article>`; renderIcons(page);
+    const professionalRows = professionals.map(professional => `<div class="data-row" data-professional-id="${escapeAttr(professional.id)}"><span class="avatar">${initials(professional.name)}</span><div><strong>${escapeHtml(professional.name)}</strong><small class="professional-meta"><b>${escapeHtml(professional.role || 'Função não informada')}</b>${professional.education ? ` · ${escapeHtml(professional.education)}` : ''}${professional.specialty ? ` · ${escapeHtml(professional.specialty)}` : ''}</small></div><span class="status-pill ${professional.active ? 'active' : 'inactive'}">${professional.active ? 'Ativo' : 'Inativo'}</span><button class="row-action" type="button" data-edit-professional>Editar</button><button class="row-action danger" type="button" data-archive-professional ${professional.active ? '' : 'disabled'}>Arquivar</button></div>`).join('');
+    page.innerHTML = `<div class="page-heading compact"><div><p class="eyebrow">PESSOAS E ACESSOS</p><h1>Equipe</h1><p class="subtitle">Acessos do sistema e corpo clínico persistidos separadamente.</p></div><button class="primary-button" type="button" data-new-user><i data-icon="plus"></i>Adicionar membro</button></div><article class="panel data-panel">${rows || emptyState('Nenhum membro cadastrado')}</article><section class="professional-section"><div class="panel-header"><div><p class="eyebrow">CORPO CLÍNICO</p><h2>Profissionais assistenciais</h2><p class="subtitle">Funções e formações prontas para uma integração futura do hospital.</p></div><button class="primary-button" type="button" data-new-professional><i data-icon="plus"></i>Novo profissional</button></div><article class="panel data-panel">${professionalRows || emptyState('Nenhum profissional ativo cadastrado')}</article></section>`; renderIcons(page);
     page.querySelector('[data-new-user]').addEventListener('click', () => openTeamDialog()); page.querySelectorAll('[data-edit-user]').forEach(button => button.addEventListener('click', () => openTeamDialog(state.team.find(user => user.id === button.closest('[data-user-id]').dataset.userId))));
+    page.querySelector('[data-new-professional]').addEventListener('click', () => openProfessionalDialog());
+    page.querySelectorAll('[data-edit-professional]').forEach(button => button.addEventListener('click', () => openProfessionalDialog(state.professionals.find(item => item.id === button.closest('[data-professional-id]').dataset.professionalId))));
+    page.querySelectorAll('[data-archive-professional]').forEach(button => button.addEventListener('click', async () => { const professional = state.professionals.find(item => item.id === button.closest('[data-professional-id]').dataset.professionalId); if (!professional || !confirm(`Arquivar ${professional.name}?`)) return; try { await api(`/professionals/${professional.id}/archive`, { method: 'POST', body: '{}' }); showToast('Profissional arquivado.', 'success'); await loadTeam(); } catch (error) { showToast(error.message, 'error'); } }));
   } catch (error) { page.innerHTML = emptyState('Não foi possível carregar a equipe', error.message); }
 }
 
 function openTeamDialog(user = null) {
   const form = document.querySelector('#teamForm'); form.reset(); form.elements.id.value = user?.id || ''; form.elements.name.value = user?.name || ''; form.elements.email.value = user?.email || ''; form.elements.role.value = user?.role || 'SECRETARY'; form.elements.active.checked = user?.active ?? true; document.querySelector('#teamDialogTitle').textContent = user ? 'Editar membro' : 'Adicionar membro'; document.querySelector('#teamDialog').showModal();
+}
+
+function openProfessionalDialog(professional = null) {
+  const form = document.querySelector('#professionalForm'); form.reset();
+  form.elements.id.value = professional?.id || ''; form.elements.name.value = professional?.name || ''; form.elements.role.value = professional?.role || ''; form.elements.education.value = professional?.education || ''; form.elements.specialty.value = professional?.specialty || ''; form.elements.registration.value = professional?.registration || ''; form.elements.phone.value = professional?.phone || ''; form.elements.email.value = professional?.email || '';
+  document.querySelector('#professionalDialogTitle').textContent = professional ? 'Editar profissional' : 'Novo profissional'; document.querySelector('#professionalDialog').showModal();
 }
 
 async function loadSettings() {
@@ -524,13 +582,21 @@ async function loadAuditLogs() {
 function bindStaticEvents() {
   renderIcons();
   document.querySelectorAll('[data-route]').forEach(link => link.addEventListener('click', event => { event.preventDefault(); go(link.dataset.route); }));
+  document.querySelectorAll('[data-dashboard-filter]').forEach(card => {
+    const open = async () => {
+      const filter = card.dataset.dashboardFilter;
+      if (filter === 'RESOLVED') { state.conversationStatus = 'RESOLVED'; await go('conversas'); return; }
+      state.agendaDate = localDate(); state.agendaStatus = filter === 'ALL' ? '' : filter; state.agendaQuery = ''; await go('agenda');
+    };
+    card.addEventListener('click', open); card.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+  });
   document.querySelector('[data-go-conversations]').addEventListener('click', () => go('conversas')); document.querySelector('[data-go-pending]').addEventListener('click', () => go('pendencias'));
   document.querySelector('.menu-button').addEventListener('click', () => document.querySelector('.sidebar').classList.toggle('open'));
   document.querySelector('#globalSearch').addEventListener('click', async () => { state.patientQuery = ''; await go('pacientes'); document.querySelector('#pacientes .search-box input')?.focus(); }); document.querySelector('#notificationButton').addEventListener('click', () => go('pendencias')); document.querySelector('#profileButton').addEventListener('click', () => go('configuracoes'));
   document.querySelectorAll('dialog .dialog-close').forEach(button => button.addEventListener('click', () => button.closest('dialog').close())); document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); }));
   document.querySelector('#newAppointment').addEventListener('click', () => openAppointmentDialog(localDate())); document.querySelector('#agendaNewAppointment').addEventListener('click', () => openAppointmentDialog(state.agendaDate)); document.querySelector('#appointmentForm').elements.doctor.addEventListener('change', refreshAvailableSlots); document.querySelector('#appointmentForm').elements.date.addEventListener('change', refreshAvailableSlots); document.querySelector('#appointmentForm').addEventListener('submit', createAppointment);
   const dateButtons = document.querySelectorAll('.agenda-date button'); dateButtons[0].addEventListener('click', () => changeAgendaDate(-1)); dateButtons[1].addEventListener('click', () => changeAgendaDate(1)); document.querySelector('#agendaDoctorFilter').addEventListener('change', event => { state.agendaDoctor = event.target.value; loadAgenda(); }); document.querySelector('#agendaStatus').addEventListener('change', event => { state.agendaStatus = event.target.value; loadAgenda(); }); document.querySelector('#agendaSearch').addEventListener('input', event => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { state.agendaQuery = event.target.value.trim(); loadAgenda(); }, 300); }); document.querySelector('.calendar-grid').addEventListener('click', event => { const item = event.target.closest('[data-appointment-id]'); if (item) openAppointmentAction(item.dataset.appointmentId); });
-  bindPatientForm(); bindAppointmentActionForm(); bindConversationEvents(); bindAutomationForm(); bindIntegrationForm(); bindTeamForm();
+  bindPatientForm(); bindAppointmentActionForm(); bindConversationEvents(); bindAutomationForm(); bindIntegrationForm(); bindTeamForm(); bindProfessionalForm();
   document.querySelector('#auditSearch').addEventListener('input', renderAuditRows); document.querySelector('#exportAudit').addEventListener('click', () => downloadCsv(`auditoria-nevoa-${localDate()}.csv`, ['Evento', 'Motivo', 'Rastreio', 'Data'], state.auditLogs.map(log => [log.action, log.reason, log.correlationId, log.at])));
   window.addEventListener('popstate', () => go(location.hash.replace('#', '') || 'dashboard', false));
 }
@@ -588,6 +654,17 @@ function bindIntegrationForm() {
 
 function bindTeamForm() {
   document.querySelector('#teamForm').addEventListener('submit', async event => { event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const id = data.get('id'); const submit = form.querySelector('[type="submit"]'); setBusy(submit, true); const payload = { name: data.get('name'), email: data.get('email'), role: data.get('role'), active: data.get('active') === 'on' }; try { await api(id ? `/team/${id}` : '/team', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) }); document.querySelector('#teamDialog').close(); showToast(id ? 'Membro atualizado.' : 'Membro adicionado.', 'success'); await loadTeam(); } catch (error) { showToast(error.message, 'error'); } finally { setBusy(submit, false); } });
+}
+
+function bindProfessionalForm() {
+  const dialog = document.querySelector('#professionalDialog');
+  dialog.querySelector('[data-close-professional]').addEventListener('click', () => dialog.close());
+  document.querySelector('#professionalForm').addEventListener('submit', async event => {
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const id = data.get('id'); const submit = form.querySelector('[type="submit"]'); setBusy(submit, true);
+    const payload = Object.fromEntries(['name', 'role', 'education', 'specialty', 'registration', 'phone', 'email'].map(key => [key, data.get(key).trim()]));
+    try { await api(id ? `/professionals/${id}` : '/professionals', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) }); dialog.close(); showToast(id ? 'Profissional atualizado.' : 'Profissional cadastrado.', 'success'); await Promise.all([loadTeam(), loadProfessionals()]); }
+    catch (error) { showToast(error.message, 'error'); } finally { setBusy(submit, false); }
+  });
 }
 
 async function boot() {

@@ -304,8 +304,8 @@ dialog .check-field input { display: inline-block; width: 17px; height: 17px; ma
   .metrics { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
   .metric-card { min-height: 132px; padding: 14px; }
   .metric-icon { margin-bottom: 11px; }
-  .metric-card strong { font-size: 24px; }
-  .metric-card small { display: block; margin: 4px 0; }
+.metric-card strong { font-size: 24px; }
+.metric-card small { display: block; margin: 4px 0; }
   .dashboard-grid, .bottom-grid { display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
   .insights-column { gap: 14px; }
   .schedule-card, .mini-panel, .attention-panel, .activity-panel { padding: 16px; }
@@ -341,3 +341,12 @@ dialog .check-field input { display: inline-block; width: 17px; height: 17px; ma
   .health-list { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 16px; }
   .toast { right: 15px; bottom: 15px; left: 15px; text-align: center; }
 }
+
+.dashboard-filter { cursor: pointer; position: relative; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.dashboard-filter:hover, .dashboard-filter:focus-visible { transform: translateY(-2px); border-color: #9bc4b5; box-shadow: 0 10px 24px rgba(17,53,47,.11); outline: none; }
+.metric-action { color: #33705f; font-weight: 700; margin-top: 9px; opacity: .78; }
+.dashboard-filter:hover .metric-action, .dashboard-filter:focus-visible .metric-action { opacity: 1; }
+.professional-section { margin-top: 24px; }
+.professional-section .panel-header { padding: 18px 20px 0; }
+.professional-meta { display: block; margin-top: 3px; color: #638177; }
+.professional-meta b { color: #3b5d53; font-weight: 700; }

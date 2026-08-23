@@ -35,8 +35,8 @@ const initialStore = {
   patients: [],
   units: [{ id: PRINCIPAL_UNIT_ID, tenantId: TENANT_ID, name: 'Principal', address: null, phone: null, active: true, createdAt: '2026-08-23T00:00:00.000Z', updatedAt: '2026-08-23T00:00:00.000Z' }],
   professionals: [
-    { id: CAMILA_PROFESSIONAL_ID, tenantId: TENANT_ID, name: 'Dra. Camila Mendes', specialty: 'Clínica geral', registration: null, phone: null, email: null, active: true, createdAt: '2026-08-23T00:00:00.000Z', updatedAt: '2026-08-23T00:00:00.000Z' },
-    { id: RAFAEL_PROFESSIONAL_ID, tenantId: TENANT_ID, name: 'Dr. Rafael Costa', specialty: 'Clínica geral', registration: null, phone: null, email: null, active: true, createdAt: '2026-08-23T00:00:00.000Z', updatedAt: '2026-08-23T00:00:00.000Z' }
+    { id: CAMILA_PROFESSIONAL_ID, tenantId: TENANT_ID, name: 'Dra. Camila Mendes', role: 'Médica', education: 'Medicina', specialty: 'Clínica geral', registration: null, phone: null, email: null, active: true, createdAt: '2026-08-23T00:00:00.000Z', updatedAt: '2026-08-23T00:00:00.000Z' },
+    { id: RAFAEL_PROFESSIONAL_ID, tenantId: TENANT_ID, name: 'Dr. Rafael Costa', role: 'Médico', education: 'Medicina', specialty: 'Clínica geral', registration: null, phone: null, email: null, active: true, createdAt: '2026-08-23T00:00:00.000Z', updatedAt: '2026-08-23T00:00:00.000Z' }
   ],
   settings: [{ tenantId: TENANT_ID, clinicName: 'Clínica Aurora', phone: '', timezone: 'America/Sao_Paulo', aiName: 'Névoa', greeting: 'Olá! Como posso ajudar?', reminderStart: '08:00', reminderEnd: '20:00' }],
   appointments: [
@@ -227,7 +227,7 @@ function appointmentView(store, appointment) {
   return {
     ...appointment,
     doctor: professional?.name || appointment.doctor,
-    professional: professional ? { id: professional.id, name: professional.name, specialty: professional.specialty, active: professional.active } : null,
+    professional: professional ? { id: professional.id, name: professional.name, role: professional.role || null, education: professional.education || null, specialty: professional.specialty, active: professional.active } : null,
     unit: unit ? { id: unit.id, name: unit.name, active: unit.active } : null
   };
 }
@@ -247,10 +247,11 @@ function validateAppointment(input) {
 }
 function validateProfessional(input, partial = false) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return 'Dados do profissional inválidos.';
-  const fields = ['name', 'specialty', 'registration', 'phone', 'email', 'active'];
+  const fields = ['name', 'role', 'education', 'specialty', 'registration', 'phone', 'email', 'active'];
   if (Object.keys(input).some(key => !fields.includes(key))) return 'O profissional contém campos não suportados.';
   if (!partial || input.name !== undefined) if (typeof input.name !== 'string' || input.name.trim().length < 2 || input.name.trim().length > 120) return 'Nome do profissional inválido.';
-  for (const key of ['specialty', 'registration']) if (input[key] !== undefined && input[key] !== null && (typeof input[key] !== 'string' || input[key].trim().length > 120)) return `${key === 'specialty' ? 'Especialidade' : 'Registro'} inválido.`;
+  const labels = { role: 'Função', education: 'Formação', specialty: 'Especialidade', registration: 'Registro' };
+  for (const key of ['role', 'education', 'specialty', 'registration']) if (input[key] !== undefined && input[key] !== null && (typeof input[key] !== 'string' || input[key].trim().length > 160)) return `${labels[key]} inválida.`;
   if (input.phone !== undefined && input.phone !== null && input.phone !== '' && !/^\+?[1-9]\d{7,14}$/.test(String(input.phone).replace(/\s|\(|\)|-/g, ''))) return 'Telefone do profissional inválido.';
   if (input.email !== undefined && input.email !== null && input.email !== '' && (typeof input.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email) || input.email.length > 254)) return 'E-mail do profissional inválido.';
   if (input.active !== undefined && typeof input.active !== 'boolean') return 'Estado do profissional inválido.';
@@ -548,7 +549,7 @@ async function handler(req, res) {
     if (req.method === 'GET' && url.pathname === '/api/professionals') {
       const pagination = paginationFor(url); const active = url.searchParams.get('active') || 'true'; const query = (url.searchParams.get('q') || '').trim().toLocaleLowerCase('pt-BR');
       if (!pagination || !['true', 'false', 'all'].includes(active)) return response(res, 400, error('INVALID_QUERY', 'Paginação ou filtro de profissionais inválido.').body);
-      const items = store.professionals.filter(item => item.tenantId === actor.tenantId && (active === 'all' || item.active === (active === 'true')) && (!query || [item.name, item.specialty, item.registration, item.phone, item.email].some(value => String(value || '').toLocaleLowerCase('pt-BR').includes(query)))).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      const items = store.professionals.filter(item => item.tenantId === actor.tenantId && (active === 'all' || item.active === (active === 'true')) && (!query || [item.name, item.role, item.education, item.specialty, item.registration, item.phone, item.email].some(value => String(value || '').toLocaleLowerCase('pt-BR').includes(query)))).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
       return response(res, 200, paginated(items, pagination.page, pagination.pageSize));
     }
     if (req.method === 'POST' && url.pathname === '/api/professionals') {
@@ -556,7 +557,7 @@ async function handler(req, res) {
       const name = input.name.trim(); const registration = input.registration?.trim() || null; const email = input.email?.trim().toLowerCase() || null;
       if (store.professionals.some(item => item.tenantId === actor.tenantId && item.name.toLocaleLowerCase('pt-BR') === name.toLocaleLowerCase('pt-BR'))) return response(res, 409, error('PROFESSIONAL_ALREADY_EXISTS', 'Já existe um profissional com este nome.', 409).body);
       if (registration && store.professionals.some(item => item.tenantId === actor.tenantId && String(item.registration || '').toLocaleLowerCase('pt-BR') === registration.toLocaleLowerCase('pt-BR'))) return response(res, 409, error('PROFESSIONAL_REGISTRATION_EXISTS', 'Já existe um profissional com este registro.', 409).body);
-      const professional = { id: id('professional'), tenantId: actor.tenantId, name, specialty: input.specialty?.trim() || null, registration, phone: String(input.phone || '').replace(/\s|\(|\)|-/g, '') || null, email, active: input.active ?? true, createdAt: now(), updatedAt: now() };
+      const professional = { id: id('professional'), tenantId: actor.tenantId, name, role: input.role?.trim() || null, education: input.education?.trim() || null, specialty: input.specialty?.trim() || null, registration, phone: String(input.phone || '').replace(/\s|\(|\)|-/g, '') || null, email, active: input.active ?? true, createdAt: now(), updatedAt: now() };
       store.professionals.push(professional); audit(store, 'professional.create', professional.id, null, professional); writeStore(store); return response(res, 201, { professional });
     }
     const professionalMatch = url.pathname.match(/^\/api\/professionals\/([^/]+)(?:\/(archive))?$/);
@@ -565,14 +566,14 @@ async function handler(req, res) {
     }
     if (professionalMatch && req.method === 'PATCH' && !professionalMatch[2]) {
       const professional = store.professionals.find(item => item.id === professionalMatch[1] && item.tenantId === actor.tenantId); if (!professional) return response(res, 404, error('PROFESSIONAL_NOT_FOUND', 'Profissional não encontrado.', 404).body);
-      const input = await body(req); const issue = validateProfessional(input, true); const allowed = ['name', 'specialty', 'registration', 'phone', 'email', 'active'];
+      const input = await body(req); const issue = validateProfessional(input, true); const allowed = ['name', 'role', 'education', 'specialty', 'registration', 'phone', 'email', 'active'];
       if (issue || !Object.keys(input).some(key => allowed.includes(key))) return response(res, 422, error('VALIDATION_ERROR', issue || 'Informe ao menos uma alteração válida.', 422).body);
       if (input.active === false) return response(res, 422, error('USE_ARCHIVE_ACTION', 'Use a ação de arquivamento para desativar um profissional.', 422).body);
       const nextName = input.name === undefined ? professional.name : input.name.trim(); const nextRegistration = input.registration === undefined ? professional.registration : input.registration?.trim() || null;
       if (store.professionals.some(item => item.id !== professional.id && item.tenantId === actor.tenantId && item.name.toLocaleLowerCase('pt-BR') === nextName.toLocaleLowerCase('pt-BR'))) return response(res, 409, error('PROFESSIONAL_ALREADY_EXISTS', 'Já existe um profissional com este nome.', 409).body);
       if (nextRegistration && store.professionals.some(item => item.id !== professional.id && item.tenantId === actor.tenantId && String(item.registration || '').toLocaleLowerCase('pt-BR') === nextRegistration.toLocaleLowerCase('pt-BR'))) return response(res, 409, error('PROFESSIONAL_REGISTRATION_EXISTS', 'Já existe um profissional com este registro.', 409).body);
       const before = { ...professional };
-      if (input.name !== undefined) professional.name = nextName; if (input.specialty !== undefined) professional.specialty = input.specialty?.trim() || null; if (input.registration !== undefined) professional.registration = nextRegistration; if (input.phone !== undefined) professional.phone = String(input.phone || '').replace(/\s|\(|\)|-/g, '') || null; if (input.email !== undefined) professional.email = input.email?.trim().toLowerCase() || null; if (input.active !== undefined) professional.active = input.active; professional.updatedAt = now();
+      if (input.name !== undefined) professional.name = nextName; if (input.role !== undefined) professional.role = input.role?.trim() || null; if (input.education !== undefined) professional.education = input.education?.trim() || null; if (input.specialty !== undefined) professional.specialty = input.specialty?.trim() || null; if (input.registration !== undefined) professional.registration = nextRegistration; if (input.phone !== undefined) professional.phone = String(input.phone || '').replace(/\s|\(|\)|-/g, '') || null; if (input.email !== undefined) professional.email = input.email?.trim().toLowerCase() || null; if (input.active !== undefined) professional.active = input.active; professional.updatedAt = now();
       if (professional.name !== before.name) store.appointments.filter(item => item.tenantId === actor.tenantId && item.professionalId === professional.id).forEach(item => { item.doctor = professional.name; });
       audit(store, 'professional.update', professional.id, before, professional); writeStore(store); return response(res, 200, { professional });
     }
@@ -691,7 +692,7 @@ async function handler(req, res) {
       if (!rule.active) return response(res, 409, error('RULE_INACTIVE', 'Ative a automação antes de executá-la.', 409).body);
       const startedAt = Date.now(); const cutoff = startedAt + rule.triggerHours * 60 * 60 * 1000;
       const eligible = store.appointments.filter(item => { const scheduledAt = Date.parse(`${item.date}T${item.start}:00-03:00`); return item.tenantId === actor.tenantId && item.status === rule.conditionStatus && Number.isFinite(scheduledAt) && scheduledAt >= startedAt && scheduledAt <= cutoff; });
-      const messageIds = [];
+      const messageIds = []; const conversationsCreated = [];
       for (const appointment of eligible) {
         let conversation = store.conversations.find(item => item.tenantId === actor.tenantId && item.appointmentId === appointment.id);
         if (!conversation) { conversation = { id: id('conv'), tenantId: actor.tenantId, patientId: appointment.patientId || null, patient: appointment.patient, appointmentId: appointment.id, channel: LOCAL_CHANNEL, status: 'OPEN', humanTakeover: false, updatedAt: now(), messages: [] }; store.conversations.push(conversation); }
@@ -699,10 +700,10 @@ async function handler(req, res) {
         const content = rule.actionType === 'FLAG_HUMAN' ? `A automação sinalizou a consulta de ${appointment.date} às ${appointment.start} para revisão da equipe.` : requestsConfirmation ? `Olá, ${appointment.patient}! Pode confirmar sua consulta de ${appointment.date} às ${appointment.start}?` : `Lembrete: sua consulta está marcada para ${appointment.date} às ${appointment.start}.`;
         const message = { id: id('msg'), direction: rule.actionType === 'FLAG_HUMAN' ? 'INTERNAL' : 'OUTBOUND', sender: rule.actionType === 'FLAG_HUMAN' ? 'SYSTEM' : 'AI', content, createdAt: now(), internal: rule.actionType === 'FLAG_HUMAN' }; conversation.messages.push(message); conversation.updatedAt = message.createdAt;
         if (rule.actionType === 'FLAG_HUMAN') { conversation.humanTakeover = true; appointment.status = 'REQUIRES_HUMAN'; appointment.version += 1; }
-        messageIds.push(message.id);
+        messageIds.push(message.id); conversationsCreated.push({ conversationId: conversation.id, patient: appointment.patient, appointmentId: appointment.id, messageId: message.id, action: rule.actionType });
       }
       const before = { executionsToday: rule.executionsToday }; rule.executionsToday += messageIds.length;
-      const result = { channel: LOCAL_CHANNEL, externalDelivery: false, eligible: eligible.length, messagesCreated: messageIds.length, messageIds };
+      const result = { channel: LOCAL_CHANNEL, externalDelivery: false, eligible: eligible.length, messagesCreated: messageIds.length, messageIds, conversations: conversationsCreated };
       audit(store, 'automation.run', rule.id, before, result, 'manual sandbox run'); writeStore(store); return response(res, 200, { rule, matched: eligible.length, executed: messageIds.length, ...result, run: result });
     }
     const automationMatch = url.pathname.match(/^\/api\/automation-rules\/([^/]+)$/);

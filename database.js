@@ -74,6 +74,13 @@ const migrations = [
       UPDATE automation_rules SET name = 'Encaminhar pedidos de remarcação', executions_today = 0, trigger_hours = 24, condition_status = 'RESCHEDULE_REQUESTED', action_type = 'FLAG_HUMAN' WHERE id = 'rule_reschedule';
       UPDATE automation_rules SET executions_today = 0, trigger_hours = 3, condition_status = 'SCHEDULED', action_type = 'SEND_REMINDER' WHERE id = 'rule_final_reminder';
     `
+  },
+  {
+    version: 3,
+    sql: `
+      ALTER TABLE professionals ADD COLUMN role TEXT;
+      ALTER TABLE professionals ADD COLUMN education TEXT;
+    `
   }
 ];
 
@@ -113,8 +120,8 @@ function createDatabaseStore(databasePath, seed) {
       const patientByName = new Map([...knownPatients.values()].map(item => [`${item.tenantId}:${item.name.toLocaleLowerCase('pt-BR')}`, item.id]));
       const unitStmt = db.prepare('INSERT INTO units(id, tenant_id, name, address, phone, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
       for (const item of store.units || []) unitStmt.run(item.id, item.tenantId, item.name, item.address || null, item.phone || null, item.active ? 1 : 0, item.createdAt, item.updatedAt);
-      const professionalStmt = db.prepare('INSERT INTO professionals(id, tenant_id, name, specialty, registration, phone, email, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const item of store.professionals || []) professionalStmt.run(item.id, item.tenantId, item.name, item.specialty || null, item.registration || null, item.phone || null, item.email || null, item.active ? 1 : 0, item.createdAt, item.updatedAt);
+      const professionalStmt = db.prepare('INSERT INTO professionals(id, tenant_id, name, specialty, registration, phone, email, active, created_at, updated_at, role, education) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      for (const item of store.professionals || []) professionalStmt.run(item.id, item.tenantId, item.name, item.specialty || null, item.registration || null, item.phone || null, item.email || null, item.active ? 1 : 0, item.createdAt, item.updatedAt, item.role || null, item.education || null);
       const appointmentStmt = db.prepare('INSERT INTO appointments(id, tenant_id, patient_id, patient_name, doctor, date, start, duration, status, version, external_id, external_updated_at, professional_id, unit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       for (const item of store.appointments || []) appointmentStmt.run(item.id, item.tenantId, item.patientId || patientByName.get(`${item.tenantId}:${item.patient.toLocaleLowerCase('pt-BR')}`) || null, item.patient, item.doctor, item.date, item.start, item.duration, item.status, item.version, item.externalId || null, item.externalUpdatedAt || null, item.professionalId || null, item.unitId || null);
       const conversationStmt = db.prepare('INSERT INTO conversations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -149,7 +156,7 @@ function createDatabaseStore(databasePath, seed) {
       sessions: Object.fromEntries(db.prepare('SELECT * FROM sessions').all().map(row => [row.id, { userId: row.user_id, expiresAt: row.expires_at }])),
       patients,
       units: db.prepare('SELECT * FROM units').all().map(row => ({ id: row.id, tenantId: row.tenant_id, name: row.name, address: row.address, phone: row.phone, active: Boolean(row.active), createdAt: row.created_at, updatedAt: row.updated_at })),
-      professionals: db.prepare('SELECT * FROM professionals').all().map(row => ({ id: row.id, tenantId: row.tenant_id, name: row.name, specialty: row.specialty, registration: row.registration, phone: row.phone, email: row.email, active: Boolean(row.active), createdAt: row.created_at, updatedAt: row.updated_at })),
+      professionals: db.prepare('SELECT * FROM professionals').all().map(row => ({ id: row.id, tenantId: row.tenant_id, name: row.name, specialty: row.specialty, registration: row.registration, phone: row.phone, email: row.email, role: row.role, education: row.education, active: Boolean(row.active), createdAt: row.created_at, updatedAt: row.updated_at })),
       appointments: db.prepare('SELECT * FROM appointments').all().map(row => ({ id: row.id, tenantId: row.tenant_id, patientId: row.patient_id, patient: row.patient_name, doctor: row.doctor, date: row.date, start: row.start, duration: row.duration, status: row.status, version: row.version, externalId: row.external_id, externalUpdatedAt: row.external_updated_at, professionalId: row.professional_id, unitId: row.unit_id })),
       conversations,
       automationRules: db.prepare('SELECT * FROM automation_rules').all().map(row => ({ id: row.id, tenantId: row.tenant_id, name: row.name, active: Boolean(row.active), executionsToday: row.executions_today, triggerHours: row.trigger_hours, conditionStatus: row.condition_status, actionType: row.action_type })),

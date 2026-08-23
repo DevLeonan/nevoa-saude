@@ -95,6 +95,28 @@ test('salva configurações e administra equipe protegendo o último OWNER', asy
   assert.ok((await team.json()).some(item => item.id === user.id));
 });
 
+test('cadastra e atualiza profissionais com função e formação', async () => {
+  const created = await jsonRequest('/api/professionals', 'POST', {
+    name: 'Dra. Marina Duarte',
+    role: 'Médica neurologista',
+    education: 'Medicina · UFRGS',
+    specialty: 'Neurologia',
+    registration: 'CRM-RS 12345',
+    email: 'marina.duarte@example.com'
+  });
+  assert.equal(created.status, 201);
+  const professional = (await created.json()).professional;
+  assert.equal(professional.role, 'Médica neurologista');
+  assert.equal(professional.education, 'Medicina · UFRGS');
+
+  const updated = await jsonRequest(`/api/professionals/${professional.id}`, 'PATCH', { education: 'Medicina · UFRGS · Residência em Neurologia' });
+  assert.equal(updated.status, 200);
+  assert.equal((await updated.json()).professional.education, 'Medicina · UFRGS · Residência em Neurologia');
+
+  const found = await request('/api/professionals?q=Resid%C3%AAncia');
+  assert.ok((await found.json()).items.some(item => item.id === professional.id));
+});
+
 test('cria, filtra, anota, assume, resolve e reabre conversa somente no sandbox local', async () => {
   const created = await jsonRequest('/api/conversations', 'POST', { patient: 'Paciente Conversa' });
   const conversation = (await created.json()).conversation;
