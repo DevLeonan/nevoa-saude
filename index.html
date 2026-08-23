@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#123d36" />
+    <meta name="description" content="Névoa Saúde — operação clínica local com agenda, pacientes, conversas e automações persistidas." />
+    <title>Névoa Saúde — Central operacional</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./fixes.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegação principal">
+        <a class="brand" href="#dashboard" data-route="dashboard" aria-label="Névoa Saúde, início"><span class="brand-logo" aria-hidden="true"><img src="./logotipo.png" alt=""></span><span>Névoa<span class="brand-light"> Saúde</span></span></a>
+        <div class="clinic-switcher" aria-label="Clínica ativa"><span class="clinic-dot"></span><span><small>CLÍNICA ATIVA</small><b id="activeClinicName">Carregando…</b></span></div>
+        <nav class="nav-list">
+          <p>OPERAÇÃO</p>
+          <a href="#dashboard" data-route="dashboard" class="active"><i data-icon="grid"></i>Visão geral</a>
+          <a href="#agenda" data-route="agenda"><i data-icon="calendar"></i>Agenda<span class="nav-badge" id="agendaBadge">—</span></a>
+          <a href="#conversas" data-route="conversas"><i data-icon="message"></i>Conversas<span class="nav-badge orange" id="conversationsBadge">—</span></a>
+          <a href="#pacientes" data-route="pacientes"><i data-icon="users"></i>Pacientes</a>
+          <a href="#pendencias" data-route="pendencias"><i data-icon="alert"></i>Pendências</a>
+          <p>AUTOMAÇÃO</p>
+          <a href="#automacoes" data-route="automacoes"><i data-icon="zap"></i>Automações</a>
+          <a href="#integracoes" data-route="integracoes"><i data-icon="link"></i>Integrações</a>
+          <a href="#relatorios" data-route="relatorios"><i data-icon="chart"></i>Relatórios</a>
+          <p>SISTEMA</p>
+          <a href="#equipe" data-route="equipe"><i data-icon="team"></i>Equipe</a>
+          <a href="#auditoria" data-route="auditoria"><i data-icon="audit"></i>Auditoria</a>
+          <a href="#configuracoes" data-route="configuracoes"><i data-icon="settings"></i>Configurações</a>
+        </nav>
+        <div class="sidebar-footer" id="systemStatus"><span class="pulse"></span> Verificando a operação…</div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <button class="menu-button" type="button" aria-label="Abrir menu"><i data-icon="menu"></i></button>
+          <div class="mobile-brand"><span class="brand-logo" aria-hidden="true"><img src="./logotipo.png" alt=""></span>Névoa</div>
+          <div class="date-control"><i data-icon="calendar"></i><span id="currentDate">Carregando data…</span></div>
+          <div class="top-actions">
+            <button class="icon-button" id="globalSearch" type="button" aria-label="Buscar pacientes"><i data-icon="search"></i></button>
+            <button class="icon-button notification" id="notificationButton" type="button" aria-label="Abrir pendências"><i data-icon="bell"></i><b></b></button>
+            <button class="profile" id="profileButton" type="button" aria-label="Abrir configurações"><span id="profileInitials">—</span><i data-icon="chevron"></i></button>
+          </div>
+        </header>
+
+        <section id="dashboard" class="page active-page">
+          <div class="page-heading"><div><p class="eyebrow" id="dashboardContext">OPERAÇÃO</p><h1 id="dashboardGreeting">Bem-vindo.</h1><p class="subtitle">Dados calculados diretamente da operação persistida.</p></div><button class="primary-button" id="newAppointment" type="button"><i data-icon="plus"></i>Nova consulta</button></div>
+          <section class="metrics" aria-label="Indicadores de hoje">
+            <article class="metric-card"><div class="metric-icon soft-green"><i data-icon="calendar"></i></div><p>Consultas hoje</p><strong id="appointmentsToday">—</strong><span class="trend" id="appointmentsTrend">Carregando…</span></article>
+            <article class="metric-card"><div class="metric-icon soft-blue"><i data-icon="check"></i></div><p>Confirmadas</p><strong id="confirmedToday">—</strong><span class="progress-line"><b id="confirmedProgress" style="width:0"></b></span><small id="confirmedRate">Carregando…</small></article>
+            <article class="metric-card"><div class="metric-icon soft-gold"><i data-icon="clock"></i></div><p>Aguardando resposta</p><strong id="waitingToday">—</strong><span class="trend neutral" id="attentionCount">Carregando…</span></article>
+            <article class="metric-card"><div class="metric-icon soft-violet"><i data-icon="sparkle"></i></div><p>Resolvido sem humano</p><strong id="aiRate">—</strong><span class="trend" id="aiResolvedCount">Sem dados calculados</span></article>
+          </section>
+          <section class="dashboard-grid">
+            <article class="schedule-card panel"><div class="panel-header"><div><p class="eyebrow">AGENDA</p><h2>Próximas consultas</h2></div><a href="#agenda" data-route="agenda">Ver agenda <span>→</span></a></div><p class="live-empty">Carregando agenda…</p></article>
+            <aside class="insights-column">
+              <article class="ai-card"><div class="ai-card-top"><span class="ai-star">✦</span><span>ASSISTENTE NÉVOA</span></div><h3 id="aiCardTitle">Carregando atendimentos…</h3><p id="aiCardText">Calculando dados reais das conversas.</p><button class="outline-button" type="button" data-go-conversations>Ver conversas <span>→</span></button></article>
+              <article class="mini-panel panel"><div class="panel-header"><div><p class="eyebrow">DESEMPENHO</p><h2>Confirmações</h2></div><span class="period-label">Últimos 7 dias</span></div><div class="chart" aria-label="Confirmações nos últimos sete dias"><div class="chart-bars"><span></span><span></span><span></span><span></span><span></span><span></span><span class="today"></span></div><div class="chart-days"><span>—</span><span>—</span><span>—</span><span>—</span><span>—</span><span>—</span><span>—</span></div></div><div class="rate"><strong>—</strong><span class="trend up">—</span><small>carregando</small></div></article>
+            </aside>
+          </section>
+          <section class="bottom-grid">
+            <article class="panel attention-panel"><div class="panel-header"><div><p class="eyebrow">PRIORIDADE</p><h2>Requer atenção</h2></div><button class="text-button" type="button" data-go-pending>Ver todas</button></div><div id="dashboardAttention"><p class="live-empty">Carregando pendências…</p></div></article>
+            <article class="panel activity-panel"><div class="panel-header"><div><p class="eyebrow">ATIVIDADE</p><h2>Acontecendo agora</h2></div></div><div id="dashboardActivity"><p class="live-empty">Carregando atividade…</p></div></article>
+          </section>
+        </section>
+
+        <section id="agenda" class="page">
+          <div class="page-heading"><div><p class="eyebrow">AGENDA INTELIGENTE</p><h1>Agenda clínica</h1><p class="subtitle">Consultas persistidas e disponibilidade revalidada no servidor.</p></div><button class="primary-button" id="agendaNewAppointment" type="button"><i data-icon="plus"></i>Nova consulta</button></div>
+          <div class="agenda-filters"><label class="inline-field">Buscar paciente<input id="agendaSearch" type="search" placeholder="Nome do paciente"></label><label class="inline-field">Status<select id="agendaStatus"><option value="">Todos</option><option value="SCHEDULED">Agendada</option><option value="CONFIRMED">Confirmada</option><option value="AWAITING_PATIENT_RESPONSE">Aguardando</option><option value="RESCHEDULED">Remarcada</option><option value="CANCELLED">Cancelada</option></select></label></div>
+          <div class="panel agenda-view"><div class="agenda-toolbar"><div class="segmented"><button class="selected" type="button">Dia</button></div><div class="agenda-date"><button type="button" aria-label="Dia anterior">‹</button><strong>Carregando…</strong><button type="button" aria-label="Próximo dia">›</button></div><select id="agendaDoctorFilter" class="filter-button" aria-label="Filtrar profissional"><option value="">Todos os profissionais</option><option>Dra. Camila Mendes</option><option>Dr. Rafael Costa</option></select></div><div class="calendar-grid"><div class="hours"><span>08:00</span><span>09:00</span><span>10:00</span><span>11:00</span><span>12:00</span><span>13:00</span><span>14:00</span><span>15:00</span><span>16:00</span><span>17:00</span></div><div class="doctor-column"><div class="doctor-header"><div class="avatar camila">CM</div><span><strong>Dra. Camila Mendes</strong><small>Profissional</small></span></div><p class="agenda-empty">Carregando…</p></div><div class="doctor-column secondary-doctor"><div class="doctor-header"><div class="avatar rafael">RC</div><span><strong>Dr. Rafael Costa</strong><small>Profissional</small></span></div></div></div></div>
+        </section>
+
+        <section id="conversas" class="page">
+          <div class="page-heading compact"><div><p class="eyebrow">ATENDIMENTO LOCAL</p><h1>Conversas</h1><p class="subtitle" id="conversationChannelNotice">Mensagens ficam no banco local até um canal externo ser conectado.</p></div><button class="primary-button" id="newConversation" type="button"><i data-icon="plus"></i>Nova conversa</button></div>
+          <div class="conversations-layout panel">
+            <aside class="conversation-list"><div class="search-box"><i data-icon="search"></i><input id="conversationSearch" placeholder="Buscar conversa" aria-label="Buscar conversa" /></div><div class="tabs" id="conversationTabs"><button class="selected" type="button" data-status="OPEN">Abertas <b>—</b></button><button type="button" data-status="MINE">Minhas</button><button type="button" data-status="RESOLVED">Resolvidas</button></div><div id="conversationItems"><p class="live-empty">Carregando conversas…</p></div></aside>
+            <article class="chat"><header class="chat-header"><button class="mobile-chat-back" type="button" aria-label="Voltar para conversas">‹</button><span class="avatar">—</span><div><strong>Selecione uma conversa</strong><small>Histórico persistido</small></div><div class="chat-actions"><button class="icon-button" id="conversationResolve" type="button" aria-label="Resolver conversa" title="Resolver conversa"><i data-icon="check"></i></button></div></header><div class="message-area"><p class="live-empty">Selecione uma conversa para abrir o histórico.</p></div><footer class="composer"><button class="icon-button" id="internalNoteButton" type="button" aria-label="Adicionar nota interna" title="Nota interna"><i data-icon="plus"></i></button><input placeholder="Escreva uma mensagem local…" aria-label="Mensagem" /><button class="send-button" type="button" aria-label="Enviar mensagem"><i data-icon="send"></i></button></footer></article>
+            <aside class="patient-panel"><header><h3>Detalhes</h3></header><div class="patient-card"><span class="patient-large avatar">—</span><strong>Nenhum paciente selecionado</strong><p>Os dados serão carregados da conversa.</p><button type="button" id="conversationPatientProfile" disabled>Ver perfil completo →</button></div><section><p class="eyebrow">CONSULTA VINCULADA</p><div class="appointment-detail" id="linkedAppointment"><p>Nenhuma consulta carregada.</p></div></section><section><p class="eyebrow">CONTEXTO OPERACIONAL</p><p class="context-text" id="conversationContext">Sem contexto disponível.</p></section><button class="takeover" type="button" disabled>Assumir conversa</button></aside>
+          </div>
+        </section>
+
+        <section id="automacoes" class="page"><div class="page-heading"><div><p class="eyebrow">ORQUESTRAÇÃO LOCAL</p><h1>Automações</h1><p class="subtitle">Regras executáveis no sandbox, com resultado registrado na auditoria.</p></div><button class="primary-button" id="newAutomation" type="button"><i data-icon="plus"></i>Nova automação</button></div><div class="automation-summary"><article><span class="metric-icon soft-green"><i data-icon="zap"></i></span><p>Automações ativas</p><strong id="activeAutomations">—</strong></article><article><span class="metric-icon soft-blue"><i data-icon="send"></i></span><p>Execuções registradas</p><strong id="automationExecutions">—</strong></article><article><span class="metric-icon soft-violet"><i data-icon="audit"></i></span><p>Última execução</p><strong class="summary-date" id="lastAutomationRun">—</strong></article></div><div class="panel rules" id="automationRules"><p class="live-empty">Carregando regras…</p></div><article class="panel automation-history-panel"><div class="panel-header"><div><p class="eyebrow">HISTÓRICO</p><h2>Execuções do motor local</h2></div></div><div id="automationHistory"><p class="live-empty">Carregando histórico…</p></div></article></section>
+
+        <section id="integracoes" class="page"><div class="page-heading"><div><p class="eyebrow">CONECTIVIDADE</p><h1>Integrações</h1><p class="subtitle">Estado verificado. Nenhum canal é chamado de conectado sem validação.</p></div><button class="primary-button" id="newIntegration" type="button"><i data-icon="plus"></i>Conectar sandbox</button></div><div class="integration-grid" id="integrationGrid"><p class="live-empty">Carregando integrações…</p></div><article class="panel health-panel"><div><p class="eyebrow">SAÚDE DO SISTEMA</p><h2 id="healthTitle">Verificando…</h2></div><div class="health-list" id="healthList"><span><i></i>Base de dados: verificando</span><span><i></i>Canal externo: não verificado</span></div></article></section>
+
+        <section id="pacientes" class="page"><p class="audit-loading">Carregando pacientes…</p></section>
+        <section id="pendencias" class="page"><p class="audit-loading">Carregando pendências…</p></section>
+        <section id="relatorios" class="page"><p class="audit-loading">Carregando relatórios…</p></section>
+        <section id="equipe" class="page"><p class="audit-loading">Carregando equipe…</p></section>
+        <section id="auditoria" class="page"><div class="page-heading compact"><div><p class="eyebrow">GOVERNANÇA</p><h1>Auditoria</h1><p class="subtitle">Registro rastreável das operações sensíveis.</p></div><button class="outline-button" id="exportAudit" type="button">Exportar CSV</button></div><div class="patient-toolbar"><div class="search-box"><i data-icon="search"></i><input id="auditSearch" type="search" placeholder="Filtrar evento, motivo ou rastreio"></div></div><article class="panel audit-panel"><div class="audit-heading"><span>Evento</span><span>Motivo</span><span>Quando</span></div><div id="auditRows" class="audit-rows"><p class="audit-loading">Carregando registros…</p></div></article></section>
+        <section id="configuracoes" class="page"><p class="audit-loading">Carregando configurações…</p></section>
+      </main>
+    </div>
+
+    <div class="toast" role="status" aria-live="polite"></div>
+
+    <dialog id="appointmentDialog"><form id="appointmentForm"><button class="dialog-close" type="button" aria-label="Fechar">×</button><p class="eyebrow">NOVA CONSULTA</p><h2>Agendar atendimento</h2><label>Paciente<input name="patient" list="patientSuggestions" placeholder="Busque ou cadastre o paciente" autofocus required></label><datalist id="patientSuggestions"></datalist><label>Profissional<select name="doctor"><option>Dra. Camila Mendes</option><option>Dr. Rafael Costa</option></select></label><div class="dialog-row"><label>Data<input name="date" type="date" required></label><label>Horário disponível<select name="start" required></select></label></div><p class="slot-hint" id="slotHint" aria-live="polite">Escolha profissional e data.</p><button class="primary-button" type="submit">Criar consulta</button></form></dialog>
+    <dialog id="patientDialog"><form id="patientForm"><button class="dialog-close" type="button" aria-label="Fechar">×</button><input name="id" type="hidden"><p class="eyebrow">PACIENTE</p><h2 id="patientDialogTitle">Novo paciente</h2><label>Nome completo<input name="name" minlength="2" maxlength="120" required></label><label>Telefone internacional<input name="phone" placeholder="+5511999999999"></label><label>E-mail<input name="email" type="email" placeholder="paciente@exemplo.com"></label><div class="dialog-actions"><button class="outline-button" type="button" data-close-patient>Cancelar</button><button class="primary-button" type="submit">Salvar paciente</button></div></form></dialog>
+    <dialog id="patientProfileDialog" class="wide-dialog"><div class="dialog-content"><button class="dialog-close" type="button" aria-label="Fechar">×</button><p class="eyebrow">PERFIL DO PACIENTE</p><h2 id="patientProfileTitle">Carregando…</h2><div id="patientProfileContent"><p class="live-empty">Carregando histórico…</p></div></div></dialog>
+    <dialog id="appointmentActionDialog"><form id="appointmentActionForm"><button class="dialog-close" type="button" aria-label="Fechar">×</button><input name="id" type="hidden"><input name="version" type="hidden"><p class="eyebrow">CONSULTA</p><h2 id="appointmentActionTitle">Detalhes da consulta</h2><div class="appointment-state" id="appointmentActionStatus"></div><label>Paciente<input name="patient" readonly></label><label>Profissional<select name="doctor"><option>Dra. Camila Mendes</option><option>Dr. Rafael Costa</option></select></label><div class="dialog-row"><label>Data<input name="date" type="date" required></label><label>Horário<input name="start" type="time" required></label></div><label>Duração (minutos)<input name="duration" type="number" min="15" max="180" step="15" required></label><div class="dialog-actions appointment-actions"><button class="outline-button danger" type="button" data-cancel-appointment>Cancelar consulta</button><button class="outline-button" type="button" data-confirm-appointment>Confirmar</button><button class="outline-button" type="button" data-reschedule-appointment>Remarcar</button><button class="primary-button" type="submit">Salvar alterações</button></div></form></dialog>
+    <dialog id="conversationDialog"><form id="conversationForm"><button class="dialog-close" type="button" aria-label="Fechar">×</button><p class="eyebrow">CONVERSA LOCAL</p><h2>Iniciar atendimento</h2><label>Paciente<input name="patient" list="patientSuggestions" minlength="2" maxlength="120" required></label><label>Consulta vinculada (opcional)<select name="appointmentId"><option value="">Sem consulta vinculada</option></select></label><p class="form-notice">Este fluxo salva mensagens no ambiente local. O envio pelo WhatsApp só será habilitado depois que as credenciais oficiais forem verificadas.</p><button class="primary-button" type="submit">Criar conversa</button></form></dialog>
+    <dialog id="noteDialog"><form id="noteForm"><button class="dialog-close" type="button" aria-label="Fechar">×</button><p class="eyebrow">NOTA INTERNA</p><h2>Registrar contexto da equipe</h2><label>Nota<textarea name="content" rows="5" maxlength="3000" required></textarea></label><p class="form-notice">Notas internas não são enviadas ao paciente.</p><button class="primary-button" type="submit">Salvar nota</button></form></dialog>
+    <dialog id="automationDialog"><form id="automationForm"><button class="dialog-close" type="button" aria-label="Fechar">×</button><input name="id" type="hidden"><p class="eyebrow">AUTOMAÇÃO</p><h2 id="automationDialogTitle">Nova automação</h2><label>Nome<input name="name" minlength="3" maxlength="120" required></label><div class="dialog-row"><label>Antecedência (horas)<input name="triggerHours" type="number" min="1" max="720" required></label><label>Status da consulta<select name="conditionStatus"><option value="SCHEDULED">Agendada</option><option value="AWAITING_PATIENT_RESPONSE">Aguardando resposta</option><option value="CONFIRMED">Confirmada</option></select></label></div><label>Ação<select name="actionType"><option value="SEND_REMINDER">Criar lembrete local</option><option value="SEND_CONFIRMATION_REQUEST">Solicitar confirmação local</option></select></label><label class="check-field"><input name="active" type="checkbox" checked> Ativar ao salvar</label><button class="primary-button" type="submit">Salvar automação</button></form></dialog>
+    <dialog id="integrationDialog"><form id="integrationForm"><button class="dialog-close" type="button" aria-label="Fechar">×</button><p class="eyebrow">INTEGRAÇÃO SEGURA</p><h2>Conectar ambiente</h2><label>Nome da conexão<input name="name" minlength="2" maxlength="120" value="Webhook sandbox" required></label><label>Conector<select name="provider"><option value="GENERIC_WEBHOOK">Webhook genérico</option></select></label><label>Ambiente<select name="environment"><option value="SANDBOX">Sandbox local</option></select></label><label>Endpoint de referência (opcional)<input name="endpoint" type="url" placeholder="https://seu-endpoint.exemplo/webhook"></label><p class="form-notice">O sandbox valida e persiste a configuração sem afirmar conexão com WhatsApp ou Doctoralia.</p><button class="primary-button" type="submit">Criar integração</button></form></dialog>
+    <dialog id="teamDialog"><form id="teamForm"><button class="dialog-close" type="button" aria-label="Fechar">×</button><input name="id" type="hidden"><p class="eyebrow">EQUIPE</p><h2 id="teamDialogTitle">Adicionar membro</h2><label>Nome<input name="name" minlength="2" maxlength="120" required></label><label>E-mail<input name="email" type="email" required></label><label>Função<select name="role"><option value="ADMIN">Administrador</option><option value="SECRETARY">Secretária(o)</option><option value="VIEWER">Somente leitura</option><option value="OWNER">Proprietário</option></select></label><label class="check-field"><input name="active" type="checkbox" checked> Acesso ativo</label><button class="primary-button" type="submit">Salvar membro</button></form></dialog>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+data/store.json
+data/*.tmp
+data/*.db
+data/*.db-shm
+data/*.db-wal
+coverage/
+.env
