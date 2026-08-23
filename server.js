@@ -120,6 +120,11 @@ function error(code, message, status = 400) { return { status, body: { error: { 
 function response(res, status, payload) { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(payload)); }
 function textResponse(res, status, value) { res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }); res.end(String(value)); }
 function cookies(req) { return Object.fromEntries((req.headers.cookie || '').split(';').map(item => item.trim().split('=').map(decodeURIComponent)).filter(item => item.length === 2)); }
+function safeSecretEquals(left, right) {
+  const first = Buffer.from(String(left || '')); const second = Buffer.from(String(right || ''));
+  return first.length === second.length && first.length > 0 && crypto.timingSafeEqual(first, second);
+}
+function sessionCookie(sessionId) { return `nevoa_session=${encodeURIComponent(sessionId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_MS / 1000}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`; }
 function actorFromRequest(req, store) {
   const sessionId = cookies(req).nevoa_session;
   const session = sessionId && store.sessions[sessionId];
@@ -461,13 +466,20 @@ async function handler(req, res) {
   if (!tenant(req)) return response(res, 403, error('TENANT_FORBIDDEN', 'Tenant não autorizado.', 403).body);
   try {
     const store = readStore();
+    if (req.method === 'POST' && url.pathname === '/api/auth/login') {
+      const input = await body(req); const configuredEmail = process.env.NEVOA_OWNER_EMAIL; const configuredPassword = process.env.NEVOA_OWNER_PASSWORD;
+      if (!configuredEmail || !configuredPassword) return response(res, 503, error('LOGIN_NOT_CONFIGURED', 'Defina NEVOA_OWNER_EMAIL e NEVOA_OWNER_PASSWORD no ambiente do servidor.', 503).body);
+      if (!safeSecretEquals(String(input.email || '').trim().toLowerCase(), configuredEmail.trim().toLowerCase()) || !safeSecretEquals(input.password, configuredPassword)) return response(res, 401, error('INVALID_CREDENTIALS', 'E-mail ou senha inválidos.', 401).body);
+      const user = store.users.find(item => item.id === 'user_owner' && item.active); const sessionId = crypto.randomUUID(); store.sessions[sessionId] = { userId: user.id, expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString() }; writeStore(store);
+      res.setHeader('set-cookie', sessionCookie(sessionId)); return response(res, 201, { user: { name: user.name, role: user.role, tenantId: user.tenantId } });
+    }
     if (req.method === 'POST' && url.pathname === '/api/auth/dev-session') {
       if (process.env.NODE_ENV === 'production' || !isLocalRequest(req)) return response(res, 404, error('NOT_FOUND', 'Rota não encontrada.', 404).body);
       const user = store.users.find(item => item.id === 'user_owner' && item.active);
       const sessionId = crypto.randomUUID();
       store.sessions[sessionId] = { userId: user.id, expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString() };
       writeStore(store);
-      res.setHeader('set-cookie', `nevoa_session=${encodeURIComponent(sessionId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_MS / 1000}`);
+      res.setHeader('set-cookie', sessionCookie(sessionId));
       return response(res, 201, { user: { name: user.name, role: user.role, tenantId: user.tenantId }, development: true });
     }
     if (req.method === 'GET' && url.pathname === '/api/health') return response(res, 200, { status: 'ok', storage: 'sqlite', tenant: TENANT_ID, channel: LOCAL_CHANNEL, externalConnectors: whatsappConfigured(), whatsapp: { configured: whatsappConfigured(), webhookPath: '/api/webhooks/whatsapp', publicUrl: process.env.PUBLIC_BASE_URL || null } });

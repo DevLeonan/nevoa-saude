@@ -87,9 +87,17 @@ async function api(endpoint, options = {}) {
 }
 
 async function bootstrapSession() {
-  const response = await fetch('/api/auth/dev-session', { method: 'POST', credentials: 'same-origin' });
-  if (!response.ok) throw new Error('Não foi possível iniciar a sessão local.');
-  return response.json();
+  const existing = await fetch('/api/auth/me', { credentials: 'same-origin' });
+  if (existing.ok) return existing.json();
+  const local = await fetch('/api/auth/dev-session', { method: 'POST', credentials: 'same-origin' });
+  if (local.ok) return local.json();
+  return new Promise((resolve, reject) => {
+    const dialog = document.querySelector('#loginDialog'); const form = document.querySelector('#loginForm'); const feedback = document.querySelector('#loginFeedback');
+    dialog.showModal(); form.onsubmit = async event => { event.preventDefault(); const submit = form.querySelector('[type="submit"]'); setBusy(submit, true, 'Entrando…'); feedback.textContent = '';
+      try { const values = Object.fromEntries(new FormData(form)); const response = await fetch('/api/auth/login', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(values) }); const data = await response.json(); if (!response.ok) throw new Error(data?.error?.message || 'Não foi possível entrar.'); dialog.close(); resolve(data); }
+      catch (error) { feedback.textContent = error.message; } finally { setBusy(submit, false); }
+    };
+  });
 }
 
 function statusLabel(status) {
