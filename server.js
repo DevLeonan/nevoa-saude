@@ -785,11 +785,15 @@ async function handler(req, res) {
     }
     if (req.method === 'POST' && url.pathname === '/api/conversations') {
       const input = await body(req); let appointment = null;
+      if (input.channel !== undefined && ![LOCAL_CHANNEL, WHATSAPP_CHANNEL].includes(input.channel)) return response(res, 422, error('VALIDATION_ERROR', 'Canal de conversa inválido.', 422).body);
+      const channel = input.channel || LOCAL_CHANNEL;
+      if (channel === WHATSAPP_CHANNEL && !whatsappConfigured()) return response(res, 503, error('WHATSAPP_NOT_CONFIGURED', 'Configure as credenciais do WhatsApp Cloud API no Railway antes de iniciar esse canal.', 503).body);
       if (input.appointmentId !== undefined) { if (typeof input.appointmentId !== 'string') return response(res, 422, error('VALIDATION_ERROR', 'Consulta vinculada inválida.', 422).body); appointment = store.appointments.find(item => item.id === input.appointmentId && item.tenantId === actor.tenantId); if (!appointment) return response(res, 404, error('APPOINTMENT_NOT_FOUND', 'Consulta não encontrada.', 404).body); }
       const patientName = String(input.patient || appointment?.patient || '').trim(); if (patientName.length < 2 || patientName.length > 120) return response(res, 422, error('VALIDATION_ERROR', 'Informe o paciente da conversa.', 422).body);
       let patient = store.patients.find(item => item.tenantId === actor.tenantId && !item.archived && item.name.toLocaleLowerCase('pt-BR') === patientName.toLocaleLowerCase('pt-BR'));
       if (!patient) { patient = { id: id('patient'), tenantId: actor.tenantId, name: patientName, phone: null, email: null, archived: false, createdAt: now(), updatedAt: now() }; store.patients.push(patient); audit(store, 'patient.create_from_conversation', patient.id, null, patient); }
-      const conversation = { id: id('conv'), tenantId: actor.tenantId, patientId: patient.id, patient: patient.name, appointmentId: appointment?.id || null, channel: LOCAL_CHANNEL, status: 'OPEN', humanTakeover: true, updatedAt: now(), messages: [] };
+      if (channel === WHATSAPP_CHANNEL && !/^\+?[1-9]\d{7,14}$/.test(String(patient.phone || '').replace(/\s|\(|\)|-/g, ''))) return response(res, 422, error('WHATSAPP_RECIPIENT_INVALID', 'Cadastre o paciente com telefone internacional antes de abrir uma conversa no WhatsApp.', 422).body);
+      const conversation = { id: id('conv'), tenantId: actor.tenantId, patientId: patient.id, patient: patient.name, appointmentId: appointment?.id || null, channel, status: 'OPEN', humanTakeover: true, updatedAt: now(), messages: [] };
       store.conversations.push(conversation); audit(store, 'conversation.create', conversation.id, null, { ...conversation, messages: [] }); writeStore(store); return response(res, 201, { conversation: localConversationView(conversation, true) });
     }
     const conversationMatch = url.pathname.match(/^\/api\/conversations\/([^/]+)(?:\/(messages|incoming|takeover|release|resolve|reopen|notes))?$/);
